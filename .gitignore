@@ -1,0 +1,12 @@
+# Node Modules (Hem frontend hem backend için)
+node_modules/
+
+# Çevre Değişkenleri (Gizli bilgiler)
+.env
+
+# Build dosyaları (Vite genelde dist veya build klasörü oluşturur)
+frontend/build/
+frontend/dist/
+
+# İşletim sistemi kalıntıları
+.DS_Store
