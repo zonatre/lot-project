@@ -11,11 +11,32 @@ const app = express();
 
 const PORT = Number(process.env.PORT) || 5001;
 const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:3000";
+const CORS_ALLOWED_ORIGINS = process.env.CORS_ALLOWED_ORIGINS || "";
 const MONGO_URI = process.env.MONGO_URI;
+const allowedOrigins = Array.from(
+  new Set(
+    [
+      CLIENT_URL,
+      "http://localhost:3000",
+      "https://lot-frontend-al5b.onrender.com",
+      ...CORS_ALLOWED_ORIGINS.split(",").map((item) => item.trim()),
+    ].filter(Boolean),
+  ),
+);
 
 app.use(
   cors({
-    origin: CLIENT_URL,
+    origin(origin, callback) {
+      if (!origin) {
+        return callback(null, true);
+      }
+
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      return callback(new Error(`CORS blocked for origin: ${origin}`));
+    },
     credentials: true,
   }),
 );
