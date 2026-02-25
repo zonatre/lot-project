@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { ArrowLeft, Package } from 'lucide-react';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
@@ -10,7 +11,7 @@ import {
   TableRow,
 } from './ui/table';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
-import { mockLots, mockOrders, mockProducts } from '../lib/mockData';
+import { toast } from 'sonner@2.0.3';
 
 interface LotHistoryViewProps {
   lotId: string;
@@ -19,11 +20,43 @@ interface LotHistoryViewProps {
 }
 
 export function LotHistoryView({ lotId, productId, onBack }: LotHistoryViewProps) {
-  const lot = mockLots[productId]?.find((l) => l.id === lotId);
-  const product = mockProducts.find((p) => p.id === productId);
-  const lotOrders = mockOrders.filter((o) => o.lotId === lotId);
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001';
+  const [loading, setLoading] = useState(true);
+  const [detail, setDetail] = useState<any>(null);
 
-  if (!lot || !product) {
+  const formatSktMonth = (value: string) => {
+    const match = String(value || '').match(/^(\d{4})-(\d{2})$/);
+    if (!match) return value || '-';
+    return `${match[2]}/${match[1]}`;
+  };
+
+  const fetchDetail = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/products/${productId}/lots/${lotId}`);
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.message || 'LOT detay verisi alınamadı');
+      }
+      setDetail(payload?.data || null);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Bilinmeyen hata oluştu';
+      toast.error(message);
+      setDetail(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchDetail();
+  }, [lotId, productId]);
+
+  if (loading) {
+    return <div className="p-8 text-muted-foreground">Yükleniyor...</div>;
+  }
+
+  if (!detail?.lot || !detail?.product) {
     return (
       <div className="p-8">
         <div className="text-center py-12">
@@ -37,7 +70,10 @@ export function LotHistoryView({ lotId, productId, onBack }: LotHistoryViewProps
     );
   }
 
-  const totalSold = lotOrders.reduce((sum, order) => sum + order.quantity, 0);
+  const lot = detail.lot;
+  const product = detail.product;
+  const lotOrders = Array.isArray(detail.assignments) ? detail.assignments : [];
+  const totalSold = Number(detail?.summary?.totalSold || 0);
 
   return (
     <div className="p-8">
@@ -78,7 +114,7 @@ export function LotHistoryView({ lotId, productId, onBack }: LotHistoryViewProps
             <CardDescription>Ürün Adı</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-sm">{product.name}</div>
+            <div className="text-sm">{product.canonicalName}</div>
           </CardContent>
         </Card>
 
@@ -87,7 +123,7 @@ export function LotHistoryView({ lotId, productId, onBack }: LotHistoryViewProps
             <CardDescription>SKT (Son Kullanma)</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-lg">{lot.skt}</div>
+            <div className="text-lg">{formatSktMonth(lot.skt)}</div>
           </CardContent>
         </Card>
 
@@ -109,7 +145,7 @@ export function LotHistoryView({ lotId, productId, onBack }: LotHistoryViewProps
           <CardContent className="pt-6">
             <div className="text-center">
               <div className="text-3xl mb-2">{lotOrders.length}</div>
-              <div className="text-sm text-muted-foreground">Toplam Sipariş</div>
+              <div className="text-sm text-muted-foreground">Toplam Satış Kaydı</div>
             </div>
           </CardContent>
         </Card>
@@ -126,8 +162,8 @@ export function LotHistoryView({ lotId, productId, onBack }: LotHistoryViewProps
         <Card>
           <CardContent className="pt-6">
             <div className="text-center">
-              <div className="text-3xl mb-2">{lot.quantity}</div>
-              <div className="text-sm text-muted-foreground">Kalan Stok</div>
+              <div className="text-3xl mb-2">{lot.status === 'Active' ? 'Aktif' : 'Pasif'}</div>
+              <div className="text-sm text-muted-foreground">LOT Durumu</div>
             </div>
           </CardContent>
         </Card>
@@ -155,6 +191,7 @@ export function LotHistoryView({ lotId, productId, onBack }: LotHistoryViewProps
                   <TableHead>Sipariş Numarası</TableHead>
                   <TableHead>Müşteri/Kanal</TableHead>
                   <TableHead>Satılan Miktar</TableHead>
+                  <TableHead>Birim</TableHead>
                   <TableHead>Depo</TableHead>
                   <TableHead>Fatura No</TableHead>
                   <TableHead>SKU</TableHead>
@@ -167,20 +204,21 @@ export function LotHistoryView({ lotId, productId, onBack }: LotHistoryViewProps
                     className={index % 2 === 1 ? 'bg-muted/20' : ''}
                   >
                     <TableCell>
-                      {new Date(order.date).toLocaleDateString('tr-TR')}
+                      {new Date(order.issueDate).toLocaleDateString('tr-TR')}
                     </TableCell>
                     <TableCell>
                       <code className="text-sm">{order.orderNumber}</code>
                     </TableCell>
                     <TableCell>
                       <div>
-                        <div className="text-sm">{order.customerName || 'Belirtilmemiş'}</div>
+                        <div className="text-sm">{order.channel || 'Belirtilmemiş'}</div>
                         <Badge variant="outline" className="mt-1">
                           {order.channel}
                         </Badge>
                       </div>
                     </TableCell>
                     <TableCell>{order.quantity}</TableCell>
+                    <TableCell>{order.unit || '-'}</TableCell>
                     <TableCell>{order.warehouse}</TableCell>
                     <TableCell>
                       <code className="text-sm">{order.invoiceNo}</code>

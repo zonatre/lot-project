@@ -365,10 +365,10 @@ export function ParasutProductMappingView() {
           {mappings.map((mapping) => (
             <div
               key={mapping._id}
-              className="flex items-center justify-between rounded border border-border px-3 py-2"
+              className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 rounded border border-border px-3 py-2"
             >
-              <div className="font-medium">{mapping.canonicalName}</div>
-              <div className="text-sm text-muted-foreground">
+              <div className="font-medium break-words">{mapping.canonicalName}</div>
+              <div className="text-sm text-muted-foreground sm:shrink-0">
                 {Array.isArray(mapping.parasutProductIds) ? mapping.parasutProductIds.length : 0} kayıt
               </div>
             </div>

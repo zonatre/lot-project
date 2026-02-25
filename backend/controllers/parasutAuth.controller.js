@@ -782,3 +782,35 @@ exports.listProductMappings = async (req, res, next) => {
     return next(error);
   }
 };
+
+exports.deleteProductMapping = async (req, res, next) => {
+  try {
+    const mappingId = String(req.params.id || "").trim();
+    if (!mappingId) {
+      return res.status(400).json({ message: "mapping id is required" });
+    }
+
+    const mapping = await Product.findById(mappingId);
+    if (!mapping) {
+      return res.status(404).json({ message: "Mapping not found" });
+    }
+
+    const [deletedLots, deletedSalesAssignments] = await Promise.all([
+      Lot.deleteMany({ productId: mapping._id }),
+      SalesLotAssignment.deleteMany({ productId: mapping._id }),
+    ]);
+
+    await Product.deleteOne({ _id: mapping._id });
+
+    return res.status(200).json({
+      message: "Mapping deleted",
+      deleted: {
+        productId: String(mapping._id),
+        lots: deletedLots.deletedCount || 0,
+        salesAssignments: deletedSalesAssignments.deletedCount || 0,
+      },
+    });
+  } catch (error) {
+    return next(error);
+  }
+};

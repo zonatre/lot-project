@@ -10,6 +10,7 @@ router.get("/products", parasutAuthController.getProducts);
 router.get("/products/all", parasutAuthController.getAllProducts);
 router.get("/drafts", parasutAuthController.getDraftProducts);
 router.get("/mappings", parasutAuthController.listProductMappings);
+router.delete("/mappings/:id", parasutAuthController.deleteProductMapping);
 router.post("/token/exchange", parasutAuthController.exchangeCode);
 router.post("/token/refresh", parasutAuthController.refreshToken);
 router.post("/sync-drafts", parasutAuthController.syncDraftProducts);

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeft, Plus, Link2, Info, Save, Pencil, X, ChevronDown } from 'lucide-react';
+import { ArrowLeft, Plus, Link2, Info, Save, Pencil, X, ChevronDown, Trash2 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -85,6 +85,8 @@ export function ProductDetailView({ productId, onBack, onViewLot }: ProductDetai
   const [savingName, setSavingName] = useState(false);
   const [newParasutId, setNewParasutId] = useState('');
   const [addingSource, setAddingSource] = useState(false);
+  const [removingSourceId, setRemovingSourceId] = useState<string | null>(null);
+  const [deletingGroup, setDeletingGroup] = useState(false);
 
   const fetchDetail = async () => {
     setLoading(true);
@@ -222,6 +224,59 @@ export function ProductDetailView({ productId, onBack, onViewLot }: ProductDetai
     }
   };
 
+  const handleRemoveSourceItem = async (parasutId: string, name: string) => {
+    const confirmed = window.confirm(
+      `"${name}" Paraşüt kaydını bu üründen kaldırmak istediğinize emin misiniz?`,
+    );
+    if (!confirmed) return;
+
+    setRemovingSourceId(parasutId);
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/products/${productId}/source-items/${encodeURIComponent(parasutId)}`,
+        { method: 'DELETE' },
+      );
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.message || 'Paraşüt kaydı kaldırılamadı');
+      }
+
+      setProduct(payload?.data || null);
+      toast.success('Paraşüt kaydı kaldırıldı');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Bilinmeyen hata oluştu';
+      toast.error(message);
+    } finally {
+      setRemovingSourceId(null);
+    }
+  };
+
+  const handleDeleteGroup = async () => {
+    const confirmed = window.confirm(
+      `"${product?.canonicalName}" grubunu silmek istediğinize emin misiniz?\nBu işlem LOT ve satış atama kayıtlarını da kaldırır.`,
+    );
+    if (!confirmed) return;
+
+    setDeletingGroup(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/parasut/mappings/${productId}`, {
+        method: 'DELETE',
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.message || 'Ürün grubu silinemedi');
+      }
+
+      toast.success('Ürün grubu silindi');
+      onBack();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Bilinmeyen hata oluştu';
+      toast.error(message);
+    } finally {
+      setDeletingGroup(false);
+    }
+  };
+
   if (loading) {
     return <div className="p-8 text-muted-foreground">Yükleniyor...</div>;
   }
@@ -353,19 +408,29 @@ export function ProductDetailView({ productId, onBack, onViewLot }: ProductDetai
                       <div key={item.parasutId} className="rounded border border-border p-3 flex items-center justify-between">
                         <div>
                           <div className="font-medium">{item.name}</div>
-                          <div className="text-xs text-muted-foreground">
-                            Paraşüt ID: <code>{item.parasutId}</code> {item.code ? `| Kod: ${item.code}` : ''}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <Badge variant="outline" className="gap-1">
-                            <Link2 className="w-3 h-3" />
-                            {item.archived ? 'Arşiv' : 'Aktif'}
-                          </Badge>
+                        <div className="text-xs text-muted-foreground">
+                          Paraşüt ID: <code>{item.parasutId}</code> {item.code ? `| Kod: ${item.code}` : ''}
                         </div>
                       </div>
-                    ))}
-                  </div>
+                      <div className="flex items-center gap-3">
+                          <Badge variant="outline" className="gap-1">
+                          <Link2 className="w-3 h-3" />
+                          {item.archived ? 'Arşiv' : 'Aktif'}
+                        </Badge>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                          disabled={removingSourceId === item.parasutId}
+                          onClick={() => handleRemoveSourceItem(item.parasutId, item.name)}
+                        >
+                          <Trash2 className="w-4 h-4 mr-1" />
+                          {removingSourceId === item.parasutId ? 'Kaldırılıyor...' : 'Kaldır'}
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
                 )}
               </CardContent>
             </CollapsibleContent>
@@ -505,6 +570,26 @@ export function ProductDetailView({ productId, onBack, onViewLot }: ProductDetai
                 ))}
               </div>
             </div>
+          </CardContent>
+        </Card>
+
+        <Card className="col-span-3 border-destructive/30">
+          <CardHeader>
+            <CardTitle className="text-destructive">!!!</CardTitle>
+            <CardDescription>
+              Bu ürün grubunu tamamen silebilirsiniz. Bu işlem geri alınamaz!
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button
+              variant="outline"
+              className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+              onClick={handleDeleteGroup}
+              disabled={deletingGroup}
+            >
+              <Trash2 className="w-4 h-4 mr-2" />
+              {deletingGroup ? 'Siliniyor...' : 'Ürün Grubunu Sil'}
+            </Button>
           </CardContent>
         </Card>
       </div>

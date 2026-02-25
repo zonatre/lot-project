@@ -164,6 +164,69 @@ exports.listProductSalesLotAssignments = async (req, res, next) => {
   }
 };
 
+exports.getProductLotDetail = async (req, res, next) => {
+  try {
+    const product = await Product.findById(req.params.id);
+    if (!product) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+
+    const lot = await Lot.findOne({ _id: req.params.lotId, productId: product._id });
+    if (!lot) {
+      return res.status(404).json({ message: "Lot not found for this product" });
+    }
+
+    const assignments = await SalesLotAssignment.find({
+      productId: product._id,
+      lotId: lot._id,
+    })
+      .sort({ issueDate: -1, createdAt: -1 })
+      .limit(200)
+      .lean();
+
+    const assignmentRows = assignments.map((row) => {
+      const { orderNumber, channel } = extractOrderAndChannel(
+        row.invoiceName || row.invoiceNumber,
+        row.invoiceId,
+      );
+      return {
+        id: String(row._id),
+        issueDate: String(row.issueDate || ""),
+        orderNumber,
+        channel,
+        quantity: Number(row?.raw?.detail?.attributes?.quantity || 1),
+        warehouse: String(row.warehouse || "Ana Depo"),
+        invoiceNo: String(row.invoiceNumber || row.invoiceId || ""),
+        sku: String(row.parasutProductId || ""),
+        unit: String(row.unit || ""),
+        createdAt: row.createdAt,
+      };
+    });
+
+    const totalSold = assignmentRows.reduce((sum, row) => sum + (row.quantity || 0), 0);
+
+    return res.status(200).json({
+      data: {
+        lot,
+        product: {
+          _id: product._id,
+          canonicalName: product.canonicalName,
+          currentActiveLot: product.currentActiveLot,
+          skt: product.skt,
+          status: product.status,
+        },
+        assignments: assignmentRows,
+        summary: {
+          assignmentCount: assignmentRows.length,
+          totalSold,
+        },
+      },
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
 exports.listSalesLotAssignmentsForExport = async (req, res, next) => {
   try {
     const startDate = String(req.query.start_date || "").trim();
@@ -312,6 +375,42 @@ exports.addProductSourceItem = async (req, res, next) => {
     await product.save();
 
     return res.status(200).json({ data: product });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+exports.removeProductSourceItem = async (req, res, next) => {
+  try {
+    const product = await Product.findById(req.params.id);
+    if (!product) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+
+    const parasutId = String(req.params.parasutId || "").trim();
+    if (!parasutId) {
+      return res.status(400).json({ message: "parasutId is required" });
+    }
+
+    const exists = (product.parasutProductIds || []).includes(parasutId);
+    if (!exists) {
+      return res.status(404).json({ message: "Source item not found in this product" });
+    }
+
+    product.parasutProductIds = (product.parasutProductIds || []).filter((id) => id !== parasutId);
+    product.sourceItems = (product.sourceItems || []).filter((item) => item.parasutId !== parasutId);
+    await product.save();
+
+    const deletedAssignments = await SalesLotAssignment.deleteMany({
+      productId: product._id,
+      parasutProductId: parasutId,
+    });
+
+    return res.status(200).json({
+      message: "Source item removed",
+      data: product,
+      deletedSalesAssignments: deletedAssignments.deletedCount || 0,
+    });
   } catch (error) {
     return next(error);
   }
