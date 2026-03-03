@@ -6,6 +6,7 @@ const mongoose = require("mongoose");
 dotenv.config();
 const parasutRoutes = require("./routes/parasut.routes");
 const productRoutes = require("./routes/product.routes");
+const authRoutes = require("./routes/auth.routes");
 
 const app = express();
 
@@ -41,6 +42,7 @@ app.use(
   }),
 );
 app.use(express.json());
+app.use("/api/auth", authRoutes);
 app.use("/api/parasut", parasutRoutes);
 app.use("/api/products", productRoutes);
 
