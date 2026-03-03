@@ -64,6 +64,7 @@ function buildPath(
 }
 
 export default function App() {
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001';
   const [state, setState] = useState<AppState>({
     isAuthenticated: false,
     view: 'dashboard',
@@ -71,6 +72,31 @@ export default function App() {
     selectedLotId: null,
   });
   const [integrationConnected, setIntegrationConnected] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    const token = localStorage.getItem('auth_token');
+    if (!token) return;
+
+    fetch(`${API_BASE_URL}/api/auth/session`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    })
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error('Session geçersiz');
+        }
+        const next = parsePath(window.location.pathname);
+        setState((prev) => ({
+          ...prev,
+          isAuthenticated: true,
+          ...next,
+        }));
+      })
+      .catch(() => {
+        localStorage.removeItem('auth_token');
+      });
+  }, []);
 
   useEffect(() => {
     const onPopState = () => {
@@ -93,7 +119,8 @@ export default function App() {
     }
   }, [state.isAuthenticated, state.view, state.selectedProductId, state.selectedLotId]);
 
-  const handleLogin = () => {
+  const handleLogin = (token: string) => {
+    localStorage.setItem('auth_token', token);
     const next = parsePath(window.location.pathname);
     setState((prev) => ({
       ...prev,
@@ -103,6 +130,7 @@ export default function App() {
   };
 
   const handleLogout = () => {
+    localStorage.removeItem('auth_token');
     setState({
       isAuthenticated: false,
       view: 'dashboard',

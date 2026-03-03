@@ -3,6 +3,8 @@ node_modules/
 
 # Çevre Değişkenleri (Gizli bilgiler)
 .env
+backend/.env
+frontend/.env
 
 # Build dosyaları (Vite genelde dist veya build klasörü oluşturur)
 frontend/build/

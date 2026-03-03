@@ -7,16 +7,17 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/
 import { toast } from 'sonner';
 
 interface LoginViewProps {
-  onLogin: () => void;
+  onLogin: (token: string) => void;
 }
 
 export function LoginView({ onLogin }: LoginViewProps) {
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001';
   const [step, setStep] = useState<'email' | 'code'>('email');
   const [email, setEmail] = useState('');
   const [code, setCode] = useState(['', '', '', '', '', '']);
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleEmailSubmit = (e: React.FormEvent) => {
+  const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!email || !email.includes('@')) {
@@ -25,15 +26,27 @@ export function LoginView({ onLogin }: LoginViewProps) {
     }
 
     setIsLoading(true);
-    
-    // Simulate sending email
-    setTimeout(() => {
-      setIsLoading(false);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/auth/request-code`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim().toLowerCase() }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.message || 'Kod gönderilemedi');
+      }
+
       setStep('code');
       toast.success('Doğrulama kodu e-postanıza gönderildi!', {
         description: 'Lütfen 6 haneli kodu girin',
       });
-    }, 1500);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Kod gönderilemedi';
+      toast.error(message);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleCodeChange = (index: number, value: string) => {
@@ -68,7 +81,28 @@ export function LoginView({ onLogin }: LoginViewProps) {
     }
   };
 
-  const handleCodeSubmit = (fullCode?: string) => {
+  const handleCodePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    e.preventDefault();
+    const pasted = e.clipboardData.getData('text');
+    const digits = pasted.replace(/\D/g, '').slice(0, 6);
+    if (!digits) return;
+
+    const nextCode = ['', '', '', '', '', ''];
+    digits.split('').forEach((digit, index) => {
+      nextCode[index] = digit;
+    });
+    setCode(nextCode);
+
+    if (digits.length === 6) {
+      handleCodeSubmit(digits);
+      return;
+    }
+
+    const nextInput = document.getElementById(`code-${digits.length}`);
+    nextInput?.focus();
+  };
+
+  const handleCodeSubmit = async (fullCode?: string) => {
     const codeToVerify = fullCode || code.join('');
     
     if (codeToVerify.length !== 6) {
@@ -77,24 +111,57 @@ export function LoginView({ onLogin }: LoginViewProps) {
     }
 
     setIsLoading(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/auth/verify-code`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: email.trim().toLowerCase(),
+          code: codeToVerify,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.message || 'Kod doğrulanamadı');
+      }
 
-    // Simulate code verification
-    setTimeout(() => {
-      setIsLoading(false);
-      
-      // Accept any 6-digit code for demo
+      const token = String(payload?.token || '');
+      if (!token) {
+        throw new Error('Token alınamadı');
+      }
+
       toast.success('Giriş başarılı!');
-      setTimeout(() => {
-        onLogin();
-      }, 500);
-    }, 1000);
+      onLogin(token);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Kod doğrulanamadı';
+      toast.error(message);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleResendCode = () => {
+  const handleResendCode = async () => {
     setCode(['', '', '', '', '', '']);
-    toast.success('Yeni doğrulama kodu gönderildi!');
-    const firstInput = document.getElementById('code-0');
-    firstInput?.focus();
+    setIsLoading(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/auth/request-code`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim().toLowerCase() }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.message || 'Kod tekrar gönderilemedi');
+      }
+      toast.success('Yeni doğrulama kodu gönderildi!');
+      const firstInput = document.getElementById('code-0');
+      firstInput?.focus();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Kod tekrar gönderilemedi';
+      toast.error(message);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleBackToEmail = () => {
@@ -187,6 +254,7 @@ export function LoginView({ onLogin }: LoginViewProps) {
                           value={digit}
                           onChange={(e) => handleCodeChange(index, e.target.value)}
                           onKeyDown={(e) => handleKeyDown(index, e)}
+                          onPaste={handleCodePaste}
                           className="w-12 h-12 text-center text-lg border-2 border-border bg-background focus-visible:border-primary"
                         />
                       ))}
@@ -233,7 +301,7 @@ export function LoginView({ onLogin }: LoginViewProps) {
 
         {/* Footer */}
         <div className="text-center mt-6 text-sm text-muted-foreground">
-          Demo amaçlı: Herhangi bir 6 haneli kod kabul edilir
+          Sadece yetkili e-posta adresleri giriş yapabilir.
         </div>
       </div>
     </div>

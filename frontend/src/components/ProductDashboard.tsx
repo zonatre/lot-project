@@ -73,15 +73,11 @@ export function ProductDashboard({
   });
   const [products, setProducts] = useState<Product[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
-  const [isSalesSyncing, setIsSalesSyncing] = useState(false);
   const [isCodeDialogOpen, setIsCodeDialogOpen] = useState(false);
   const [authorizationCode, setAuthorizationCode] = useState('');
   const [authUrl, setAuthUrl] = useState('');
   const [isExchangingCode, setIsExchangingCode] = useState(false);
   const [syncAfterConnect, setSyncAfterConnect] = useState(false);
-  const yesterday = new Date();
-  yesterday.setDate(yesterday.getDate() - 1);
-  const yesterdayLabel = yesterday.toLocaleDateString('tr-TR');
 
   const readApiError = (payload: any, fallback: string) => {
     if (payload?.message && payload?.details) {
@@ -240,42 +236,6 @@ export function ProductDashboard({
     }
   };
 
-  const handleSyncSalesLots = async () => {
-    setIsSalesSyncing(true);
-    try {
-      const connected = await fetchTokenStatus();
-      if (!connected) {
-        await openCodeDialog(false);
-        toast.info('Önce Paraşüt bağlantısını tamamlayın');
-        return;
-      }
-
-      const params = new URLSearchParams();
-      if (PARASUT_COMPANY_ID) {
-        params.set('company_id', PARASUT_COMPANY_ID);
-      }
-
-      const response = await fetch(
-        `${API_BASE_URL}/api/parasut/sync-sales-lots?${params.toString()}`,
-        { method: 'POST' }
-      );
-      const payload = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        throw new Error(readApiError(payload, 'Satış faturaları işlenemedi'));
-      }
-
-      toast.success(
-        `Satış işleme tamamlandı: ${payload?.assignedLots || 0} satıra LOT atandı`
-      );
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Bilinmeyen hata oluştu';
-      toast.error(message);
-    } finally {
-      setIsSalesSyncing(false);
-    }
-  };
-
   const handleOpenConnectDialog = async () => {
     await openCodeDialog(false);
   };
@@ -355,13 +315,6 @@ export function ProductDashboard({
             >
               <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
               Paraşüt'ten Senkronize Et
-            </Button>
-            <Button
-              variant="outline"
-              onClick={handleSyncSalesLots}
-              disabled={isSalesSyncing || isSyncing}
-            >
-              {isSalesSyncing ? 'Satışlar Getiriliyor...' : `${yesterdayLabel} Satışlarını Getir`}
             </Button>
             <Button variant="outline" onClick={handleOpenConnectDialog} disabled={isSyncing}>
               Paraşüt Kodu Gir
